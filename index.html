@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
@@ -2353,7 +2355,7 @@
                     </div>
                 </div><div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">🪙 Financial Technology <span class="staff-req-badge">1:3</span></h3>
+                        <h3 class="card-title">🪙 Fintech Startup <span class="staff-req-badge">1:3</span></h3>
                         <i class="fas fa-microchip card-icon"></i>
                     </div>
                     <div class="stats">
@@ -2796,6 +2798,7 @@
         <!-- Customize Tab -->
         <div id="customize" class="tab-content">
             <div class="customization-section">
+
                 <h2 style="margin-bottom: 1rem; color: var(--primary);">🎨 Customize Your Company</h2>
                 <p style="color: var(--text-light); margin-bottom: 2rem;">
                     Make your financial empire uniquely yours! Customize your company's appearance.
@@ -2863,6 +2866,10 @@
             </div>
         </div>
     </div>
+
+
+
+
 
 
     <div id="statementModal" class="modal">
@@ -3246,7 +3253,7 @@
             },
             {
                 id: 'finTech',
-                name: '🪙 Financial Technology',
+                name: '🪙 Fintech Startup',
                 cost: 1200,
                 services: ['remittance', 'investment', 'developmentConsultancy'],
                 revenueMultiplier: 1.8,
@@ -4128,12 +4135,59 @@
         // Initialize Game - FIXED VERSION
 function initGame() {
     console.log("🎮 Initializing game...");
+
+
+
+// TEMPORARY: Force reset to test
+    gameState = {
+        balance: 1000.00,
+        dailyRevenue: 0,
+        dailyExpenses: 0,
+        gameDay: 1,
+        completedCyclesToday: 0,
+        // ... keep other properties as needed
+    };
     
     // Load saved game state first
     const savedGame = localStorage.getItem('financialTycoonGame');
     if (savedGame) {
         gameState = JSON.parse(savedGame);
     }
+
+// 🔧 FIX CORRUPTED GAME STATE
+    if (gameState.dailyExpenses > 10000 || 
+        (gameState.financialLedger && gameState.financialLedger.length > 50)) {
+        
+        console.log("⚠️ Fixing corrupted game state...");
+        
+        // Reset financials but keep progress
+        gameState.balance = 1000.00;
+        gameState.dailyRevenue = 0;
+        gameState.dailyExpenses = 0;
+        gameState.gameDay = 1;
+        gameState.completedCyclesToday = 0;
+        gameState.totalMinutesPassed = 0;
+        
+        // Reset financial tracking
+        gameState.financialLedger = [];
+        gameState.dailyTransactionLog = {};
+        gameState.profitHistory = [];
+        gameState.totalRevenueHistory = 0;
+        gameState.totalExpenseHistory = 0;
+        
+        // Clear actions log except for fix message
+        gameState.actionsLog = [{
+            timestamp: new Date().toLocaleTimeString(),
+            message: "🛠️ Game fixed: Salary bug corrected",
+            type: "info"
+        }];
+        
+        // Save the fix
+        localStorage.setItem('financialTycoonGame', JSON.stringify(gameState));
+        
+        showNotification("✅ Game fixed! Incorrect salary charges removed.", "success");
+    }
+
     
     // Ensure gameState has all required properties (but don't overwrite customizations)
     if (!gameState.financialLedger) {
@@ -4220,48 +4274,87 @@ function initGame() {
             console.log("🔄 Game loop started");
         }
 
-        // Process time passed
-        function processTimePassed() {
-            const now = Date.now();
-            const lastUpdate = gameState.lastUpdate || now;
-            const timePassedMs = now - lastUpdate;
-            const minutesPassed = timePassedMs / 60000;
-            
-            gameState.totalMinutesPassed = (gameState.totalMinutesPassed || 0) + minutesPassed;
-            
-            const cyclesMissed = Math.floor(minutesPassed / 2);
-            
-            if (cyclesMissed > 0) {
-                let totalMissedRevenue = 0;
-                for (let i = 0; i < cyclesMissed; i++) {
-                    totalMissedRevenue += calculateCycleRevenue();
-                    
-                    gameState.completedCyclesToday++;
-                    
-                    if (gameState.completedCyclesToday >= DAY_CYCLES) {
-                        resetDaily();
-                        gameState.completedCyclesToday = 0;
-                    }
-                }
+        //
+function processTimePassed() {
+    const now = Date.now();
+    const lastUpdate = gameState.lastUpdate || now;
+    const timePassedMs = now - lastUpdate;
+    const minutesPassed = timePassedMs / 60000;
+    
+    gameState.totalMinutesPassed = (gameState.totalMinutesPassed || 0) + minutesPassed;
+    
+    const cyclesMissed = Math.floor(minutesPassed / 2);
+    
+    if (cyclesMissed > 0) {
+        console.log(`🔍 processTimePassed(): ${cyclesMissed} cycles missed`);
+        
+        // Calculate how many FULL days were missed
+        const fullDaysMissed = Math.floor(cyclesMissed / DAY_CYCLES); // 720 cycles per day
+        const remainingCycles = cyclesMissed % DAY_CYCLES;
+        
+        console.log(`🔍 ${fullDaysMissed} full days + ${remainingCycles} cycles`);
+        
+        // Process each full day that passed (pay salaries once per day)
+        if (fullDaysMissed > 0) {
+            for (let day = 0; day < fullDaysMissed; day++) {
+                console.log(`💸 Processing salary for day ${gameState.gameDay + day}`);
                 
-                if (totalMissedRevenue > 0) {
-                    gameState.balance += totalMissedRevenue;
-                    gameState.dailyRevenue += totalMissedRevenue;
-                    
-                    addActionToLog(`💰 Offline revenue: TTD $${totalMissedRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})} (${cyclesMissed} cycles)`, "success");
-                }
+                // Pay salaries for this day
+                applyAccountingFees();
+                paySalaries();
+                processLoanRepayments();
+                
+                // Update history
+                const previousRevenue = gameState.dailyRevenue;
+                const previousExpenses = gameState.dailyExpenses;
+                
+                gameState.totalRevenueHistory = (gameState.totalRevenueHistory || 0) + previousRevenue;
+                gameState.totalExpenseHistory = (gameState.totalExpenseHistory || 0) + previousExpenses;
+                
+                // Reset for next day
+                gameState.dailyRevenue = 0;
+                gameState.dailyExpenses = 0;
+                gameState.completedCyclesToday = 0;
+                gameState.gameDay++;
+                
+                addActionToLog(`📅 Day ${gameState.gameDay-1} completed while offline`, "info");
             }
-            
-            gameState.lastUpdate = now;
-            
-            const timeSinceCycleStart = (now - (gameState.currentCycleStart || now)) % CYCLE_MS;
-            gameState.currentCycleStart = now - timeSinceCycleStart;
-            
-            updateTimePassedDisplay();
-            updateDashboard();
         }
-
-        // Update time passed display
+        
+        // Calculate revenue for ALL missed cycles
+        let totalMissedRevenue = 0;
+        for (let i = 0; i < cyclesMissed; i++) {
+            totalMissedRevenue += calculateCycleRevenue();
+        }
+        
+        // Update current day's cycle count
+        gameState.completedCyclesToday += remainingCycles;
+        
+        // Check if current day is complete
+        if (gameState.completedCyclesToday >= DAY_CYCLES) {
+            console.log(`🔍 Current day completed, calling resetDaily()`);
+            resetDaily();
+        }
+        
+        // Apply the revenue
+        if (totalMissedRevenue > 0) {
+            gameState.balance += totalMissedRevenue;
+            gameState.dailyRevenue += totalMissedRevenue;
+            
+            if (totalMissedRevenue >= 1) {
+                addActionToLog(`💰 Offline revenue: TTD $${totalMissedRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})}`, "success");
+            }
+        }
+    }
+    
+    gameState.lastUpdate = now;
+    
+    const timeSinceCycleStart = (now - (gameState.currentCycleStart || now)) % CYCLE_MS;
+    gameState.currentCycleStart = now - timeSinceCycleStart;
+    
+    updateTimePassedDisplay();
+    updateDashboard();
+}        // Update time passed display
         function updateTimePassedDisplay() {
             const totalMinutes = Math.floor(gameState.totalMinutesPassed || 0);
             const hours = Math.floor(totalMinutes / 60);
@@ -4427,6 +4520,7 @@ function initGame() {
     
     updateTimePassedDisplay();
     
+    // Check if a FULL day has passed (720 cycles = 24 hours)
     if (gameState.completedCyclesToday >= DAY_CYCLES) {
         resetDaily();
     }
@@ -4464,7 +4558,12 @@ function initGame() {
         }
 
         function paySalaries() {
+    
+console.log(`💸💸💸 paySalaries() called at ${new Date().toLocaleTimeString()}`);
+    console.log(`📅 Game Day: ${gameState.gameDay}, Completed Cycles: ${gameState.completedCyclesToday}`);
+    
     let totalSalary = 0;
+
     
     // Pay executive salaries
     staffConfig.forEach(employee => {
@@ -4881,6 +4980,10 @@ function saveGame() {
                         <div class="stat-row">
                             <span class="stat-label">Cost to Acquire</span>
                             <span class="stat-value">TTD $${client.cost.toLocaleString()}</span>
+                        </div>
+			<div class="stat-row">
+                            <span class="stat-label">Type of Service(s)</span>
+                            <span class="stat-value">N/A</span>
                         </div>
                         <div class="stat-row">
                             <span class="stat-label">Acquired Clients</span>
